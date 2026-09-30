@@ -3,18 +3,22 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Prices</title>
+    <title>GPU Pricing</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <div class="page">
       <header>
-        <h1>Prices</h1>
+        <h1>GPU Pricing</h1>
         <span id="count" class="count"></span>
       </header>
       <div class="filters">
-        <input id="gpuFilter" type="search" placeholder="GPU" autocomplete="off" spellcheck="false">
-        <input id="regionFilter" type="search" placeholder="Region" autocomplete="off" spellcheck="false">
+        <select id="gpuFilter" aria-label="GPU">
+          <option value="">All GPUs</option>
+        </select>
+        <select id="regionFilter" aria-label="Region">
+          <option value="">All regions</option>
+        </select>
         <input id="maxPriceFilter" type="number" min="0" step="0.01" placeholder="Max $/GPU/hr" inputmode="decimal">
         <select id="providerFilter" aria-label="Provider">
           <option value="">All providers</option>

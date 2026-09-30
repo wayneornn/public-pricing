@@ -149,6 +149,9 @@ test("home page is a price table", async () => {
     const html = await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text());
     const css = await fetch(`http://127.0.0.1:${port}/styles.css`).then((response) => response.text());
     assert.equal(/ornn/i.test(html), false);
+    assert.match(html, /<title>GPU Pricing<\/title>/);
+    assert.match(html, /<select id="gpuFilter"/);
+    assert.match(html, /<select id="regionFilter"/);
     assert.match(css, /PP Neue Montreal/);
     assert.match(html, /data-sort="pricePerGpuHour"/);
     assert.equal(html.includes("<footer"), false);

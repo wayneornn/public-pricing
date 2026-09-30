@@ -1,5 +1,5 @@
 import { awsInventoryRowToInventoryItem, crawl as crawlAwsInventory, hasAwsConfiguration } from "../providers/aws.js";
-import { azureInventoryRowToInventoryItem, crawl as crawlAzureInventory, hasAzureConfiguration } from "../providers/azure.js";
+import { azureInventoryRowToInventoryItem, crawl as crawlAzureInventory, crawlPublicRetail as crawlAzurePublicRetail, hasAzureConfiguration } from "../providers/azure.js";
 import { crawl as crawlDigitalOceanInventory, hasDigitalOceanConfiguration } from "../providers/digitalocean.js";
 import { crawl as crawlLatitudeInventory, hasLatitudeConfiguration } from "../providers/latitude.js";
 import { crawl as crawlMithrilInventory, hasMithrilConfiguration } from "../providers/mithril.js";
@@ -124,6 +124,7 @@ export const liveConnectors = [
   {
     id: "azure",
     name: "Azure",
+    runsWithoutCredentials: true,
     envVars: [
       "AZURE_GPU_INVENTORY_ENABLED",
       "AZURE_SUBSCRIPTION_ID",
@@ -134,8 +135,9 @@ export const liveConnectors = [
       "AZURE_FEDERATED_TOKEN_FILE"
     ],
     async fetch(env) {
-      if (!hasAzureConfiguration(env)) return [];
-      const rows = await crawlAzureInventory(env);
+      const rows = hasAzureConfiguration(env)
+        ? await crawlAzureInventory(env)
+        : await crawlAzurePublicRetail(env);
       return rows.map((row) => azureInventoryRowToInventoryItem(row, env));
     }
   },

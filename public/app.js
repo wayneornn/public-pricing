@@ -26,8 +26,9 @@ for (const button of document.querySelectorAll("th button[data-sort]")) {
   });
 }
 
-for (const input of [gpuFilter, regionFilter, maxPriceFilter, providerFilter]) {
-  input.addEventListener("input", render);
+for (const control of [gpuFilter, regionFilter, maxPriceFilter, providerFilter]) {
+  control.addEventListener("input", render);
+  control.addEventListener("change", render);
 }
 
 refreshButton.addEventListener("click", () => load({ refresh: true }));
@@ -45,7 +46,9 @@ async function load({ refresh = false } = {}) {
     const response = await fetch(refresh ? "/api/inventory?refresh=1" : "/api/inventory");
     const payload = await response.json();
     state.items = Array.isArray(payload.items) ? payload.items : [];
-    fillProviders(state.items);
+    fillSelect(gpuFilter, state.items.map((item) => item.gpuModel), "All GPUs");
+    fillSelect(regionFilter, state.items.map((item) => item.region), "All regions");
+    fillSelect(providerFilter, state.items.map((item) => item.provider), "All providers");
     render();
   } catch {
     countEl.textContent = "";
@@ -58,12 +61,15 @@ async function load({ refresh = false } = {}) {
   }
 }
 
-function fillProviders(items) {
-  const selected = providerFilter.value;
-  const names = [...new Set(items.map((item) => item.provider).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  providerFilter.replaceChildren(new Option("All providers", ""));
-  for (const name of names) providerFilter.append(new Option(name, name));
-  if (names.includes(selected)) providerFilter.value = selected;
+function fillSelect(select, values, allLabel) {
+  const selected = select.value;
+  const names = [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right, undefined, {
+    numeric: true,
+    sensitivity: "base"
+  }));
+  select.replaceChildren(new Option(allLabel, ""));
+  for (const name of names) select.append(new Option(name, name));
+  if (names.includes(selected)) select.value = selected;
 }
 
 function render() {
@@ -78,13 +84,8 @@ function render() {
 
 function matchesFilters(item) {
   if (numericPrice(item.pricePerGpuHour) == null && numericPrice(item.totalHourlyPrice) == null) return false;
-  const gpu = gpuFilter.value.trim().toLowerCase();
-  if (gpu) {
-    const haystack = `${item.gpuModel || ""} ${item.gpuVariant || ""} ${item.gpuCount || ""}`.toLowerCase();
-    if (!haystack.includes(gpu)) return false;
-  }
-  const region = regionFilter.value.trim().toLowerCase();
-  if (region && !String(item.region || "").toLowerCase().includes(region)) return false;
+  if (gpuFilter.value && item.gpuModel !== gpuFilter.value) return false;
+  if (regionFilter.value && item.region !== regionFilter.value) return false;
   const max = Number(maxPriceFilter.value);
   if (maxPriceFilter.value !== "" && Number.isFinite(max)) {
     const price = Number(item.pricePerGpuHour);

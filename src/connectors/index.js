@@ -1,4 +1,4 @@
-import { isBrokerVisibleInventoryItem, isSpotInventoryItem, redactSpotPricing, updateStaleness } from "../core/inventory.js";
+import { isBrokerVisibleInventoryItem, isInterruptibleInventoryItem, isSpotInventoryItem, redactSpotPricing, updateStaleness } from "../core/inventory.js";
 import { truthyEnv } from "../core/env.js";
 import { fixtureInventory, providerConfigs } from "./fixtures.js";
 import { liveConnectors } from "./live.js";
@@ -130,7 +130,7 @@ export async function fetchInventory({ env = process.env, mode = env.INVENTORY_M
   const connectorResults = await Promise.all(connectors.map(async (connector) => {
     const health = providerHealth.find((provider) => provider.id === connector.id);
     const configured = connector.envVars.some((envVar) => truthyEnv(env[envVar]));
-    if (!configured) {
+    if (!configured && !connector.runsWithoutCredentials) {
       if (health) health.status = "missing_key";
       return [];
     }
@@ -195,10 +195,10 @@ export async function fetchInventory({ env = process.env, mode = env.INVENTORY_M
   const dedupedItems = dedupeById(liveItems);
 
   if (normalizedMode === "live") {
-    const orderableItems = dedupedItems.filter(isBrokerVisibleInventoryItem);
+    const listedItems = dedupedItems.filter(isListedPriceItem);
     return {
       mode: "live",
-      items: orderableItems,
+      items: listedItems,
       rawCount: liveItems.length,
       providerHealth
     };
@@ -208,11 +208,11 @@ export async function fetchInventory({ env = process.env, mode = env.INVENTORY_M
   // injected into the broker-facing inventory; providers without keys stay
   // honestly marked (missing_key / not_configured) rather than backfilled with
   // sample data that does not reflect real, orderable supply.
-  const orderableLiveItems = dedupedItems.filter(isBrokerVisibleInventoryItem);
+  const listedLiveItems = dedupedItems.filter(isListedPriceItem);
 
   return {
     mode: "hybrid",
-    items: orderableLiveItems,
+    items: listedLiveItems,
     rawCount: liveItems.length,
     providerHealth
   };
@@ -225,6 +225,14 @@ export { providerConfigs };
 // twice would otherwise double-count real capacity. When two rows share an id we
 // keep the "stronger" one (orderable + available + larger availabilityCount) so
 // dedup never downgrades a buyable row to a non-orderable duplicate.
+function isListedPriceItem(item) {
+  if (!item || isInterruptibleInventoryItem(item)) return false;
+  if (isBrokerVisibleInventoryItem(item)) return true;
+  const perGpu = Number(item.pricePerGpuHour);
+  const total = Number(item.totalHourlyPrice);
+  return (Number.isFinite(perGpu) && perGpu > 0) || (Number.isFinite(total) && total > 0);
+}
+
 function dedupeById(items) {
   const byId = new Map();
   for (const item of items) {

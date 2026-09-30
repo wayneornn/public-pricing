@@ -335,3 +335,42 @@ test("fetchInventory returns fast provider rows when another provider times out"
   assert.match(result.providerHealth.find((p) => p.id === "aws").error, /timed out/);
   assert.equal(result.providerHealth.find((p) => p.id === "tensordock").status, "live");
 });
+
+test("fetchInventory keeps a priced catalog row that is not orderable", async () => {
+  __resetLastKnownGoodCache();
+  const catalog = createInventoryItem({
+    provider: "Azure",
+    providerId: "azure",
+    rawOfferId: "eastus:Standard_ND96isr_H100_v5",
+    gpuLabel: "8x H100 SXM 80GB",
+    gpuCount: 8,
+    totalHourlyPrice: 98.32,
+    region: "eastus",
+    sourceMode: "catalog",
+    listingType: "azure_retail_price",
+    priceScope: "node_total",
+    availability: "unknown",
+    checkoutUrl: "https://portal.azure.com/",
+    rawPayload: { sku: "Standard_ND96isr_H100_v5" }
+  });
+  assert.equal(catalog.orderable, false);
+  const connectors = [{
+    id: "azure",
+    name: "Azure",
+    runsWithoutCredentials: true,
+    envVars: ["AZURE_SUBSCRIPTION_ID"],
+    async fetch() {
+      return [catalog];
+    }
+  }];
+  const result = await fetchInventory({
+    env: { INVENTORY_MODE: "live" },
+    mode: "live",
+    connectors,
+    now: new Date("2026-09-30T00:00:00Z")
+  });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].provider, "Azure");
+  assert.equal(result.items[0].gpuModel, "H100");
+  assert.equal(result.providerHealth.find((provider) => provider.id === "azure").status, "live");
+});

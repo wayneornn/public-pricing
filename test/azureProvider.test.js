@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  azureInventoryRowToInventoryItem,
+  azurePublicRetailItemsToRows,
   azureSkuToOfferings,
   mapAzureGpuSku,
   parseAzureSkuMetadata,
@@ -142,4 +144,67 @@ test("Azure Retail Prices parser extracts Spot VM price", () => {
 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].spot_price_usd_per_hour, 4.56);
+});
+
+test("Azure public retail prices keep known on-demand VM sizes and drop spot rows", () => {
+  const rows = azurePublicRetailItemsToRows([
+    {
+      serviceName: "Virtual Machines",
+      currencyCode: "USD",
+      unitOfMeasure: "1 Hour",
+      type: "Consumption",
+      armSkuName: "Standard_ND96isr_H100_v5",
+      armRegionName: "eastus",
+      productName: "Virtual Machines NDsr H100 v5 Series Linux",
+      meterName: "ND96isr H100 v5",
+      retailPrice: 98.32
+    },
+    {
+      serviceName: "Virtual Machines",
+      currencyCode: "USD",
+      unitOfMeasure: "1 Hour",
+      type: "Consumption",
+      armSkuName: "Standard_ND96isr_H100_v5",
+      armRegionName: "eastus",
+      productName: "Virtual Machines NDsr H100 v5 Series Linux",
+      meterName: "ND96isr H100 v5",
+      retailPrice: 120
+    },
+    {
+      serviceName: "Virtual Machines",
+      currencyCode: "USD",
+      unitOfMeasure: "1 Hour",
+      type: "Consumption",
+      armSkuName: "Standard_NC40ads_H100_v5",
+      armRegionName: "eastus",
+      productName: "Virtual Machines NCads H100 v5 Series",
+      meterName: "NC40ads H100 v5 Low Priority",
+      retailPrice: 3.63
+    },
+    {
+      serviceName: "Virtual Machines",
+      currencyCode: "USD",
+      unitOfMeasure: "1 Hour",
+      type: "Consumption",
+      armSkuName: "Standard_ND128isr_NDR_GB200_v6",
+      armRegionName: "eastus",
+      productName: "Virtual Machines NDsr GB200 v6 Series",
+      meterName: "ND128isr",
+      retailPrice: 108.16
+    }
+  ], { now: "2026-09-30T00:00:00.000Z" });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].gpu_count, 8);
+  assert.equal(rows[0].gpu_memory_gb, 80);
+  assert.equal(rows[0].on_demand_price_usd_per_hour, 98.32);
+  assert.equal(rows[0].network_fabric, "InfiniBand");
+  const item = azureInventoryRowToInventoryItem(rows[0]);
+  assert.equal(item.provider, "Azure");
+  assert.equal(item.gpuModel, "H100");
+  assert.equal(item.gpuVariant, "SXM");
+  assert.equal(item.gpuCount, 8);
+  assert.equal(item.pricePerGpuHour, 12.29);
+  assert.equal(item.totalHourlyPrice, 98.32);
+  assert.equal(item.orderable, false);
 });

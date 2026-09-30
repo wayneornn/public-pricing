@@ -115,6 +115,14 @@ h1 {
   padding-right: 28px;
 }
 
+#gpuFilter {
+  min-width: 148px;
+}
+
+#regionFilter {
+  min-width: 196px;
+}
+
 .filters input::placeholder {
   color: #8d8a83;
 }

@@ -136,6 +136,103 @@ export async function crawl(env = process.env, options = {}) {
   return rows.sort(compareAzureRows);
 }
 
+// Published Azure VM sizes whose GPU count is part of the size name, not inferred.
+// Used when Resource SKUs (which need a subscription) are unavailable. Retail
+// prices still come from the public prices.azure.com API.
+export const AZURE_PUBLIC_GPU_SKUS = Object.freeze({
+  Standard_NC40ads_H100_v5: { gpu_model: "H100 NVL", gpu_count: 1, gpu_memory_gb: 94, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_NC80adis_H100_v5: { gpu_model: "H100 NVL", gpu_count: 2, gpu_memory_gb: 94, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_ND96is_H100_v5: { gpu_model: "H100 SXM", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_ND96is_noIB_H100_v5: { gpu_model: "H100 SXM", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_ND96isf_H100_v5: { gpu_model: "H100 SXM", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_ND96isr_H100_v5: { gpu_model: "H100 SXM", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96isrf_H100_v5: { gpu_model: "H100 SXM", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_NC24ads_A100_v4: { gpu_model: "A100", gpu_count: 1, gpu_memory_gb: 80, interconnect: "PCIe", network_fabric: "Not exposed" },
+  Standard_NC48ads_A100_v4: { gpu_model: "A100", gpu_count: 2, gpu_memory_gb: 80, interconnect: "PCIe", network_fabric: "Not exposed" },
+  Standard_NC96ads_A100_v4: { gpu_model: "A100", gpu_count: 4, gpu_memory_gb: 80, interconnect: "PCIe", network_fabric: "Not exposed" },
+  Standard_ND96asr_v4: { gpu_model: "A100", gpu_count: 8, gpu_memory_gb: 40, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96asr_A100_v4: { gpu_model: "A100", gpu_count: 8, gpu_memory_gb: 40, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96ams_A100_v4: { gpu_model: "A100", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "Not exposed" },
+  Standard_ND96amsr_A100_v4: { gpu_model: "A100", gpu_count: 8, gpu_memory_gb: 80, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96isr_H200_v5: { gpu_model: "H200", gpu_count: 8, gpu_memory_gb: 141, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96isrf_H200_v5: { gpu_model: "H200", gpu_count: 8, gpu_memory_gb: 141, interconnect: "NVLink", network_fabric: "InfiniBand" },
+  Standard_ND96is_MI300X_v5: { gpu_model: "MI300X", gpu_count: 8, gpu_memory_gb: 192, interconnect: "Unknown", network_fabric: "Not exposed" },
+  Standard_ND96isr_MI300X_v5: { gpu_model: "MI300X", gpu_count: 8, gpu_memory_gb: 192, interconnect: "Unknown", network_fabric: "InfiniBand" }
+});
+
+const AZURE_PUBLIC_PRODUCT_FILTERS = Object.freeze(["H100", "A100", "H200", "MI300X"]);
+
+export async function crawlPublicRetail(env = process.env, options = {}) {
+  const now = options.now ? new Date(options.now) : new Date();
+  const items = options.retailItems || (await Promise.all(
+    AZURE_PUBLIC_PRODUCT_FILTERS.map((productName) => fetchRetailProductItems(productName, env))
+  )).flat();
+  return azurePublicRetailItemsToRows(items, { now });
+}
+
+export function azurePublicRetailItemsToRows(items, { now = new Date() } = {}) {
+  const seenAt = now instanceof Date ? now : new Date(now);
+  const seen = new Map();
+  for (const item of items || []) {
+    if (!isPublicOnDemandRetailItem(item)) continue;
+    const spec = AZURE_PUBLIC_GPU_SKUS[item.armSkuName];
+    if (!spec || !item.armRegionName) continue;
+    const price = numberOrNull(item.retailPrice ?? item.unitPrice);
+    if (price == null) continue;
+    const key = `${item.armSkuName}:${item.armRegionName}`;
+    const existing = seen.get(key);
+    if (existing && existing.on_demand_price_usd_per_hour <= price) continue;
+    seen.set(key, {
+      provider: AZURE_PROVIDER_ID,
+      region: item.armRegionName,
+      availability_zone: "regional",
+      sku_name: item.armSkuName,
+      gpu_model: spec.gpu_model,
+      gpu_count: spec.gpu_count,
+      gpu_memory_gb: spec.gpu_memory_gb,
+      interconnect: spec.interconnect,
+      network_fabric: spec.network_fabric,
+      offered: null,
+      availability: "unknown",
+      restriction_reason: "",
+      on_demand_price_usd_per_hour: price,
+      spot_price_usd_per_hour: null,
+      price_source: "retail_prices",
+      last_seen: seenAt.toISOString(),
+      metadata: {
+        priceSource: "azure_retail_prices",
+        productName: item.productName,
+        meterName: item.meterName,
+        rawOnDemandPrice: item
+      }
+    });
+  }
+  return [...seen.values()].sort(compareAzureRows);
+}
+
+async function fetchRetailProductItems(productName, env) {
+  const params = new URLSearchParams();
+  params.set("$filter", `serviceName eq 'Virtual Machines' and contains(productName,'${productName}') and priceType eq 'Consumption'`);
+  let next = `${env.AZURE_RETAIL_PRICES_URL || AZURE_RETAIL_PRICES_URL}?${params.toString()}`;
+  const rows = [];
+  for (let page = 0; page < 20 && next; page += 1) {
+    const response = await fetch(next, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error(`Azure Retail Prices failed: ${response.status} ${response.statusText}`);
+    const body = await response.json();
+    rows.push(...(body.Items || body.items || []));
+    next = body.NextPageLink || body.nextPageLink || "";
+  }
+  return rows;
+}
+
+function isPublicOnDemandRetailItem(item) {
+  if (!isRetailVmHourlyUsd(item)) return false;
+  if (/windows/i.test(item.productName || "")) return false;
+  if (isSpotRetailItem(item) || /low priority/i.test(`${item.meterName || ""} ${item.skuName || ""} ${item.productName || ""}`)) return false;
+  if (item.type && !/^Consumption$/i.test(item.type)) return false;
+  return true;
+}
+
 export function azureInventoryRowToInventoryItem(row, env = process.env) {
   return createInventoryItem({
     provider: "Azure",
@@ -148,22 +245,23 @@ export function azureInventoryRowToInventoryItem(row, env = process.env) {
     totalHourlyPrice: row.on_demand_price_usd_per_hour,
     region: row.region,
     formFactor: "vm",
-    interconnect: /sxm|nd/i.test(`${row.gpu_model} ${row.sku_name}`) ? "NVLink" : "PCIe",
+    interconnect: row.interconnect || (/sxm|nd/i.test(`${row.gpu_model} ${row.sku_name}`) ? "NVLink" : "PCIe"),
     cpu: row.vcpu ? `${row.vcpu} vCPU` : "",
     ramGb: row.ram_gb,
     storage: row.local_storage,
     networkBandwidth: row.network,
     networkFabric: row.network_fabric || "Not exposed",
-    availability: row.offered ? "available" : "unavailable",
+    availability: row.availability || (row.offered ? "available" : "unavailable"),
     availabilityCount: null,
     currency: "USD",
     checkoutUrl: buildAzureVmUrl(row.region, row.sku_name, env),
-    sourceMode: "live",
-    listingType: "azure_resource_sku_offering",
+    sourceMode: row.price_source === "retail_prices" ? "catalog" : "live",
+    listingType: row.price_source === "retail_prices" ? "azure_retail_price" : "azure_resource_sku_offering",
     priceScope: "node_total",
     dataNotes: [
-      "Azure official Resource SKUs and Retail Prices APIs",
-      "Offered SKU/zone, not capacity checked",
+      ...(row.price_source === "retail_prices"
+        ? ["Azure Retail Prices API", "Published VM list price, capacity not checked"]
+        : ["Azure official Resource SKUs and Retail Prices APIs", "Offered SKU/zone, not capacity checked"]),
       row.network_fabric ? `Fabric: ${row.network_fabric}` : "Fabric not exposed",
       row.restriction_reason ? `Restriction: ${row.restriction_reason}` : "",
       row.spot_price_usd_per_hour != null ? `Spot: $${row.spot_price_usd_per_hour}/hr` : ""
