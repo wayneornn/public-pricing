@@ -28,6 +28,10 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
     const snapshot = store.snapshot();
     if (request.query.refresh === "1") {
       await store.refresh({ force: true });
+    } else if (process.env.VERCEL && snapshot.items.length && snapshotIsStale(snapshot, env)) {
+      store.refresh().catch((error) => {
+        console.error(`inventory refresh failed: ${error.message}`);
+      });
     } else if (process.env.VERCEL && snapshotIsStale(snapshot, env)) {
       await store.refresh();
     } else if (!snapshot.lastRefreshAt && !snapshot.isRefreshing) {
@@ -37,7 +41,7 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
     }
     const body = publicSnapshot(store.snapshot());
     if (process.env.VERCEL && request.query.refresh !== "1" && body.items.length) {
-      response.set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=3600");
+      response.set("Cache-Control", "public, max-age=30, s-maxage=300, stale-while-revalidate=3600");
     }
     response.json(body);
   });
@@ -77,8 +81,12 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
   });
 
   app.use(express.static(publicDir, {
-    setHeaders(response) {
-      response.setHeader("Cache-Control", "no-store");
+    setHeaders(response, filePath) {
+      if (String(filePath).endsWith(".html")) {
+        response.setHeader("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=86400");
+      } else {
+        response.setHeader("Cache-Control", "public, max-age=3600");
+      }
     }
   }));
 

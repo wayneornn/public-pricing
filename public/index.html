@@ -24,7 +24,10 @@
         <select id="providerFilter" aria-label="Provider">
           <option value="">All providers</option>
         </select>
-        <button id="refreshButton" type="button">Refresh</button>
+        <label class="check" for="orderableOnly">
+          <input id="orderableOnly" type="checkbox">
+          Orderable
+        </label>
       </div>
       <div class="table-wrap">
         <table>
@@ -33,16 +36,16 @@
               <th>
                 <button type="button" data-sort="provider">Provider<span class="arrow" aria-hidden="true"></span></button>
               </th>
-              <th>
+              <th class="tight">
                 <button type="button" data-sort="configuration">Configuration<span class="arrow" aria-hidden="true"></span></button>
               </th>
               <th>
                 <button type="button" data-sort="region">Region<span class="arrow" aria-hidden="true"></span></button>
               </th>
-              <th class="num">
+              <th class="num tight">
                 <button type="button" data-sort="pricePerGpuHour" aria-sort="ascending"><span class="arrow" aria-hidden="true">↑</span>$/GPU/hr</button>
               </th>
-              <th class="num">
+              <th class="num tight">
                 <button type="button" data-sort="totalHourlyPrice"><span class="arrow" aria-hidden="true"></span>$/hr</button>
               </th>
               <th class="num">

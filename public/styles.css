@@ -46,7 +46,6 @@ body {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.2;
-  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -77,7 +76,6 @@ h1 {
 .count {
   font-size: 13px;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .filters {
@@ -133,16 +131,24 @@ h1 {
   outline-offset: 1px;
 }
 
-#refreshButton {
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--control-h);
   margin-left: auto;
-  padding: 0 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
   cursor: pointer;
+  user-select: none;
 }
 
-#refreshButton:disabled {
-  color: var(--muted);
-  cursor: default;
+.check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
 }
 
 .table-wrap {
@@ -158,6 +164,8 @@ table {
   min-width: 920px;
   border-collapse: separate;
   border-spacing: 0;
+  font-family: "PP Neue Montreal", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 400;
 }
 
 th, td {
@@ -242,9 +250,25 @@ tbody tr:hover td {
   text-align: right;
 }
 
-.provider,
-.price {
-  font-weight: 500;
+th.tight,
+td.tight,
+th.tight button {
+  letter-spacing: -0.06em;
+  font-variant-numeric: proportional-nums;
+  font-weight: 400;
+}
+
+th.tight,
+td.tight {
+  width: 1%;
+}
+
+tbody tr.hyperscaler td {
+  background: #f8f1d4;
+}
+
+tbody tr.hyperscaler:hover td {
+  background: #f3e9c2;
 }
 
 .tag {
@@ -296,7 +320,7 @@ a.order:hover {
     min-width: 0;
   }
 
-  #refreshButton {
+  .check {
     margin-left: 0;
   }
 }

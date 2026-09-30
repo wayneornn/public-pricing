@@ -10,8 +10,10 @@ const gpuFilter = document.getElementById("gpuFilter");
 const regionFilter = document.getElementById("regionFilter");
 const maxPriceFilter = document.getElementById("maxPriceFilter");
 const providerFilter = document.getElementById("providerFilter");
-const refreshButton = document.getElementById("refreshButton");
+const orderableOnly = document.getElementById("orderableOnly");
 let gpuChosen = false;
+
+const HYPERSCALERS = new Set(["aws", "azure", "google-cloud", "oci"]);
 
 for (const button of document.querySelectorAll("th button[data-sort]")) {
   button.addEventListener("click", () => {
@@ -27,7 +29,7 @@ for (const button of document.querySelectorAll("th button[data-sort]")) {
   });
 }
 
-for (const control of [gpuFilter, regionFilter, maxPriceFilter, providerFilter]) {
+for (const control of [gpuFilter, regionFilter, maxPriceFilter, providerFilter, orderableOnly]) {
   control.addEventListener("input", () => {
     fitSelect(control);
     render();
@@ -39,19 +41,12 @@ for (const control of [gpuFilter, regionFilter, maxPriceFilter, providerFilter])
   });
 }
 
-refreshButton.addEventListener("click", () => load({ refresh: true }));
-
 syncSortHeaders();
 load();
-setInterval(() => load(), 20000);
 
-async function load({ refresh = false } = {}) {
-  if (refresh) {
-    refreshButton.disabled = true;
-    refreshButton.textContent = "Refreshing";
-  }
+async function load() {
   try {
-    const response = await fetch(refresh ? "/api/inventory?refresh=1" : "/api/inventory");
+    const response = await fetch("/api/inventory");
     const payload = await response.json();
     state.items = Array.isArray(payload.items) ? payload.items : [];
     fillSelect(gpuFilter, state.items.map((item) => item.gpuModel), "All GPUs");
@@ -61,11 +56,6 @@ async function load({ refresh = false } = {}) {
   } catch {
     countEl.textContent = "";
     rowsEl.innerHTML = `<tr class="empty"><td colspan="7">Unavailable</td></tr>`;
-  } finally {
-    if (refresh) {
-      refreshButton.disabled = false;
-      refreshButton.textContent = "Refresh";
-    }
   }
 }
 
@@ -120,7 +110,12 @@ function matchesFilters(item) {
     if (!Number.isFinite(price) || price > max) return false;
   }
   if (providerFilter.value && item.provider !== providerFilter.value) return false;
+  if (orderableOnly.checked && !hasOrderLink(item)) return false;
   return true;
+}
+
+function hasOrderLink(item) {
+  return Boolean(item.checkoutUrl) && ["exact_listing", "prefilled_deploy"].includes(item.checkoutSemantics);
 }
 
 function compareItems(left, right) {
@@ -173,12 +168,13 @@ function rowHtml(item) {
   if (isGpuOnly(item)) tags.push("GPU only");
   if (item.marketType === "spot" || item.priceSemantics === "spot") tags.push("Spot");
   const tagHtml = tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
-  return `<tr>
+  const hyperscaler = HYPERSCALERS.has(item.providerId) ? " hyperscaler" : "";
+  return `<tr class="${hyperscaler.trim()}">
     <td class="provider">${escapeHtml(item.provider || "")}</td>
-    <td>${escapeHtml(configurationText(item))}</td>
+    <td class="tight">${escapeHtml(configurationText(item))}</td>
     <td>${escapeHtml(item.region || "—")}</td>
-    <td class="num price">${tagHtml}${formatMoney(item.pricePerGpuHour, item.currency)}</td>
-    <td class="num">${formatMoney(item.totalHourlyPrice, item.currency)}</td>
+    <td class="num tight">${tagHtml}${formatMoney(item.pricePerGpuHour, item.currency)}</td>
+    <td class="num tight">${formatMoney(item.totalHourlyPrice, item.currency)}</td>
     <td class="num">${escapeHtml(availabilityText(item))}</td>
     <td class="order">${orderHtml(item)}</td>
   </tr>`;

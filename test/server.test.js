@@ -162,7 +162,7 @@ test("vercel caches a filled inventory response at the edge", async () => {
     const port = server.address().port;
     const response = await fetch(`http://127.0.0.1:${port}/api/inventory`);
     const fresh = await fetch(`http://127.0.0.1:${port}/api/inventory?refresh=1`);
-    assert.match(response.headers.get("cache-control"), /s-maxage=60/);
+    assert.match(response.headers.get("cache-control"), /s-maxage=300/);
     assert.match(response.headers.get("cache-control"), /stale-while-revalidate=3600/);
     assert.equal(fresh.headers.get("cache-control"), "no-store");
   } finally {
@@ -188,6 +188,8 @@ test("home page is a price table", async () => {
     assert.equal(/ornn/i.test(html), false);
     assert.match(html, /<title>GPU Pricing<\/title>/);
     assert.match(html, /<option value="H100" selected>H100<\/option>/);
+    assert.match(html, /id="orderableOnly"/);
+    assert.equal(html.includes("Refresh"), false);
     assert.match(html, /<select id="regionFilter"/);
     assert.match(css, /PP Neue Montreal/);
     assert.match(html, /data-sort="pricePerGpuHour"/);
