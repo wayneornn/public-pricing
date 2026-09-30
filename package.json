@@ -1,0 +1,26 @@
+{
+  "name": "public-pricing",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test",
+    "audit:live": "node scripts/audit-live-data.js",
+    "validate:checkout": "node scripts/validate-checkout-truth.js",
+    "validate:vendors": "node scripts/validate-vendors.js",
+    "check": "node --check src/server.js && node --check src/store.js && node --check src/core/inventorySnapshotStore.js && node --check src/providers/aws.js && node --check src/providers/azure.js && node --check src/providers/oci.js && node --check src/providers/latitude.js && node --check src/providers/nebius.js && node --check src/providers/digitalocean.js && node --check src/providers/mithril.js && node --check src/providers/nscale.js && node --check src/providers/ovhcloud.js && node --check scripts/validate-vendors.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.1062.0",
+    "@aws-sdk/client-pricing": "^3.1062.0",
+    "@azure/identity": "^4.13.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "oci-sdk": "^2.132.0"
+  }
+}

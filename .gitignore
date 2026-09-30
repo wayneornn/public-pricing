@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.cache/
+.tools/
+data/*.json
+coverage/
+reports/
+node_modules/
+.DS_Store
+npm-debug.log*
+*.local.mjs
+real-inventory.json
+public/fonts/
