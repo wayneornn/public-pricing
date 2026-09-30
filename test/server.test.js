@@ -135,6 +135,43 @@ test("cron refresh on Vercel requires the cron secret", async () => {
   }
 });
 
+test("vercel caches a filled inventory response at the edge", async () => {
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = "1";
+  const item = runpodItem({ price: 3.25 });
+  const { server } = createAppServer({
+    env: {
+      INVENTORY_MODE: "live",
+      RUNPOD_API_KEY: "x",
+      REFRESH_INTERVAL_SECONDS: "30"
+    },
+    connectors: [{
+      id: "runpod",
+      name: "Runpod",
+      envVars: ["RUNPOD_API_KEY"],
+      async fetch() {
+        return [item];
+      }
+    }],
+    initialItems: [item]
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  try {
+    const port = server.address().port;
+    const response = await fetch(`http://127.0.0.1:${port}/api/inventory`);
+    const fresh = await fetch(`http://127.0.0.1:${port}/api/inventory?refresh=1`);
+    assert.match(response.headers.get("cache-control"), /s-maxage=60/);
+    assert.match(response.headers.get("cache-control"), /stale-while-revalidate=3600/);
+    assert.equal(fresh.headers.get("cache-control"), "no-store");
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previous;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("home page is a price table", async () => {
   const { server } = createAppServer({
     env: { INVENTORY_MODE: "fixture", REFRESH_INTERVAL_SECONDS: "0" },
@@ -150,7 +187,7 @@ test("home page is a price table", async () => {
     const css = await fetch(`http://127.0.0.1:${port}/styles.css`).then((response) => response.text());
     assert.equal(/ornn/i.test(html), false);
     assert.match(html, /<title>GPU Pricing<\/title>/);
-    assert.match(html, /<select id="gpuFilter"/);
+    assert.match(html, /<option value="H100" selected>H100<\/option>/);
     assert.match(html, /<select id="regionFilter"/);
     assert.match(css, /PP Neue Montreal/);
     assert.match(html, /data-sort="pricePerGpuHour"/);

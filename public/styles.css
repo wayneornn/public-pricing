@@ -111,16 +111,15 @@ h1 {
 }
 
 .filters select {
-  min-width: 168px;
-  padding-right: 28px;
-}
-
-#gpuFilter {
-  min-width: 148px;
-}
-
-#regionFilter {
-  min-width: 196px;
+  width: auto;
+  min-width: 0;
+  padding: 0 28px 0 12px;
+  appearance: none;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'><path d='M0.5 0.5 L4 4 L7.5 0.5' fill='none' stroke='%231c1b19' stroke-width='1'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 8px 5px;
 }
 
 .filters input::placeholder {
@@ -292,8 +291,7 @@ a.order:hover {
   }
 
   .filters input[type="search"],
-  .filters input[type="number"],
-  .filters select {
+  .filters input[type="number"] {
     width: calc(50% - 4px);
     min-width: 0;
   }

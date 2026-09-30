@@ -35,7 +35,11 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
         console.error(`inventory refresh failed: ${error.message}`);
       });
     }
-    response.json(publicSnapshot(store.snapshot()));
+    const body = publicSnapshot(store.snapshot());
+    if (process.env.VERCEL && request.query.refresh !== "1" && body.items.length) {
+      response.set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=3600");
+    }
+    response.json(body);
   });
 
   app.get("/api/cron/refresh", async (request, response) => {

@@ -11,6 +11,7 @@ const regionFilter = document.getElementById("regionFilter");
 const maxPriceFilter = document.getElementById("maxPriceFilter");
 const providerFilter = document.getElementById("providerFilter");
 const refreshButton = document.getElementById("refreshButton");
+let gpuChosen = false;
 
 for (const button of document.querySelectorAll("th button[data-sort]")) {
   button.addEventListener("click", () => {
@@ -27,8 +28,15 @@ for (const button of document.querySelectorAll("th button[data-sort]")) {
 }
 
 for (const control of [gpuFilter, regionFilter, maxPriceFilter, providerFilter]) {
-  control.addEventListener("input", render);
-  control.addEventListener("change", render);
+  control.addEventListener("input", () => {
+    fitSelect(control);
+    render();
+  });
+  control.addEventListener("change", () => {
+    if (control === gpuFilter) gpuChosen = true;
+    fitSelect(control);
+    render();
+  });
 }
 
 refreshButton.addEventListener("click", () => load({ refresh: true }));
@@ -69,7 +77,27 @@ function fillSelect(select, values, allLabel) {
   }));
   select.replaceChildren(new Option(allLabel, ""));
   for (const name of names) select.append(new Option(name, name));
-  if (names.includes(selected)) select.value = selected;
+  if (select === gpuFilter && !gpuChosen && names.includes("H100")) {
+    select.value = "H100";
+  } else if (names.includes(selected)) {
+    select.value = selected;
+  }
+  fitSelect(select);
+}
+
+function fitSelect(select) {
+  if (select.tagName !== "SELECT") return;
+  const label = select.options[select.selectedIndex]?.text || "";
+  const probe = fitSelect.probe || (fitSelect.probe = document.createElement("span"));
+  const style = getComputedStyle(select);
+  probe.textContent = label;
+  probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;";
+  probe.style.font = style.font;
+  probe.style.fontVariantNumeric = style.fontVariantNumeric;
+  probe.style.letterSpacing = style.letterSpacing;
+  if (!probe.isConnected) document.body.append(probe);
+  const textWidth = Math.ceil(probe.getBoundingClientRect().width);
+  select.style.width = `${textWidth + 46}px`;
 }
 
 function render() {
