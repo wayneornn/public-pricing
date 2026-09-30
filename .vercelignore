@@ -1,0 +1,9 @@
+.git
+node_modules
+.cache
+coverage
+reports
+.env
+.env.*
+!.env.example
+.vercel

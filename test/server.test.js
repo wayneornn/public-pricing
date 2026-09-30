@@ -104,6 +104,37 @@ test("checkout revalidation endpoint returns 409 when the provider no longer has
   }
 });
 
+test("cron refresh on Vercel requires the cron secret", async () => {
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = "1";
+  const { server } = createAppServer({
+    env: {
+      INVENTORY_MODE: "fixture",
+      REFRESH_INTERVAL_SECONDS: "0",
+      CRON_SECRET: "test-secret"
+    },
+    connectors: [],
+    initialItems: [runpodItem({ price: 3.25 })],
+    initialProviderHealth: []
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  try {
+    const port = server.address().port;
+    const denied = await fetch(`http://127.0.0.1:${port}/api/cron/refresh`);
+    assert.equal(denied.status, 401);
+    const allowed = await fetch(`http://127.0.0.1:${port}/api/cron/refresh`, {
+      headers: { authorization: "Bearer test-secret" }
+    });
+    assert.equal(allowed.status, 200);
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previous;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("home page is a price table", async () => {
   const { server } = createAppServer({
     env: { INVENTORY_MODE: "fixture", REFRESH_INTERVAL_SECONDS: "0" },

@@ -28,12 +28,21 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
     const snapshot = store.snapshot();
     if (request.query.refresh === "1") {
       await store.refresh({ force: true });
+    } else if (process.env.VERCEL && snapshotIsStale(snapshot, env)) {
+      await store.refresh();
     } else if (!snapshot.lastRefreshAt && !snapshot.isRefreshing) {
       store.refresh().catch((error) => {
         console.error(`inventory refresh failed: ${error.message}`);
       });
     }
     response.json(publicSnapshot(store.snapshot()));
+  });
+
+  app.get("/api/cron/refresh", async (request, response) => {
+    if (!cronAuthorized(request, env)) return response.status(401).json({ ok: false });
+    await store.refresh({ force: true });
+    const latest = publicSnapshot(store.snapshot());
+    response.json({ ok: true, count: latest.count, lastRefreshAt: latest.lastRefreshAt });
   });
 
   app.post("/api/search", async (request, response) => {
@@ -80,7 +89,7 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
   });
 
   const server = http.createServer(app);
-  return { server, store };
+  return { app, server, store };
 }
 
 export function startServerFromEnv(env = process.env) {
@@ -103,6 +112,8 @@ export function startServerFromEnv(env = process.env) {
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   startServerFromEnv();
 }
+
+export default createAppServer().app;
 
 export function startRefreshLoop(store, { intervalSeconds = 5, logger = console } = {}) {
   let stopped = false;
@@ -139,6 +150,19 @@ export function startRefreshLoop(store, { intervalSeconds = 5, logger = console 
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function snapshotIsStale(snapshot, env) {
+  if (!snapshot.lastRefreshAt) return true;
+  const ageMs = Date.now() - Date.parse(snapshot.lastRefreshAt);
+  const maxAgeMs = Math.max(30, Number(env.REFRESH_INTERVAL_SECONDS || 90)) * 1000;
+  return !Number.isFinite(ageMs) || ageMs > maxAgeMs;
+}
+
+function cronAuthorized(request, env) {
+  if (!process.env.VERCEL) return true;
+  const secret = env.CRON_SECRET;
+  return Boolean(secret) && request.headers.authorization === `Bearer ${secret}`;
 }
 
 function publicSnapshot(snapshot) {
