@@ -39,7 +39,8 @@ export function createAppServer({ env = process.env, connectors, initialItems, i
         console.error(`inventory refresh failed: ${error.message}`);
       });
     }
-    const body = publicSnapshot(store.snapshot());
+    const gpu = typeof request.query.gpu === "string" ? request.query.gpu.trim() : "";
+    const body = publicSnapshot(store.snapshot(), gpu);
     if (process.env.VERCEL && request.query.refresh !== "1" && body.items.length) {
       response.set("Cache-Control", "public, max-age=30, s-maxage=300, stale-while-revalidate=3600");
     }
@@ -177,10 +178,13 @@ function cronAuthorized(request, env) {
   return Boolean(secret) && request.headers.authorization === `Bearer ${secret}`;
 }
 
-function publicSnapshot(snapshot) {
+function publicSnapshot(snapshot, gpu = "") {
+  let items = (snapshot.items || []).map(publicItem);
+  if (gpu) items = items.filter((item) => item.gpuModel === gpu);
   return {
     ...snapshot,
-    items: (snapshot.items || []).map(publicItem)
+    items,
+    count: items.length
   };
 }
 

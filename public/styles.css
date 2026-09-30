@@ -253,7 +253,7 @@ tbody tr:hover td {
 th.tight,
 td.tight,
 th.tight button {
-  letter-spacing: -0.06em;
+  letter-spacing: -0.03em;
   font-variant-numeric: proportional-nums;
   font-weight: 400;
 }
@@ -304,6 +304,26 @@ a.order:hover {
   padding: 28px var(--cell-x);
   color: var(--muted);
   text-align: left;
+}
+
+.loading {
+  display: none;
+  position: fixed;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+body.is-loading .loading {
+  display: flex;
+}
+
+body.is-loading .page {
+  visibility: hidden;
 }
 
 @media (max-width: 760px) {

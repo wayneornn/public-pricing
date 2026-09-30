@@ -172,6 +172,44 @@ test("vercel caches a filled inventory response at the edge", async () => {
   }
 });
 
+test("inventory gpu query returns only that model", async () => {
+  const h100 = runpodItem({ price: 3.25 });
+  const a100 = createInventoryItem({
+    provider: "Runpod",
+    providerId: "runpod",
+    rawOfferId: "NVIDIA A100",
+    gpuLabel: "1x A100 80GB",
+    gpuCount: 1,
+    totalHourlyPrice: 2.1,
+    availability: "available",
+    availabilitySemantics: "sku_capacity",
+    region: "US",
+    listingType: "gpu_type_lowest_price",
+    priceScope: "node_total",
+    checkoutSemantics: "manual_provider",
+    checkoutUrl: "https://www.runpod.io/console/gpu-cloud",
+    sourceMode: "live",
+    rawPayload: { id: "NVIDIA A100" }
+  });
+  const { server } = createAppServer({
+    env: { INVENTORY_MODE: "live", REFRESH_INTERVAL_SECONDS: "3600" },
+    connectors: [],
+    initialItems: [h100, a100]
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  try {
+    const port = server.address().port;
+    const payload = await fetch(`http://127.0.0.1:${port}/api/inventory?gpu=H100`).then((response) => response.json());
+    assert.equal(payload.items.length, 1);
+    assert.equal(payload.items[0].gpuModel, "H100");
+    assert.equal(payload.count, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("home page is a price table", async () => {
   const { server } = createAppServer({
     env: { INVENTORY_MODE: "fixture", REFRESH_INTERVAL_SECONDS: "0" },
@@ -189,6 +227,8 @@ test("home page is a price table", async () => {
     assert.match(html, /<title>GPU Pricing<\/title>/);
     assert.match(html, /<option value="H100" selected>H100<\/option>/);
     assert.match(html, /id="orderableOnly"/);
+    assert.match(html, /id="loading"/);
+    assert.match(html, /class="is-loading"/);
     assert.equal(html.includes("Refresh"), false);
     assert.match(html, /<select id="regionFilter"/);
     assert.match(css, /PP Neue Montreal/);

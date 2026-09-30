@@ -45,18 +45,39 @@ syncSortHeaders();
 load();
 
 async function load() {
+  document.body.classList.add("is-loading");
   try {
-    const response = await fetch("/api/inventory");
-    const payload = await response.json();
-    state.items = Array.isArray(payload.items) ? payload.items : [];
-    fillSelect(gpuFilter, state.items.map((item) => item.gpuModel), "All GPUs");
-    fillSelect(regionFilter, state.items.map((item) => item.region), "All regions");
-    fillSelect(providerFilter, state.items.map((item) => item.provider), "All providers");
-    render();
+    const first = await fetchInventory("H100");
+    applyPayload(first);
+    document.body.classList.remove("is-loading");
+    const rest = await fetchInventory("");
+    applyPayload(rest);
   } catch {
+    document.body.classList.remove("is-loading");
     countEl.textContent = "";
     rowsEl.innerHTML = `<tr class="empty"><td colspan="7">Unavailable</td></tr>`;
   }
+}
+
+async function fetchInventory(gpu) {
+  const url = gpu ? `/api/inventory?gpu=${encodeURIComponent(gpu)}` : "/api/inventory";
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`inventory ${response.status}`);
+    const payload = await response.json();
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (items.length || !payload.isRefreshing) return payload;
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+  return { items: [] };
+}
+
+function applyPayload(payload) {
+  state.items = Array.isArray(payload.items) ? payload.items : [];
+  fillSelect(gpuFilter, state.items.map((item) => item.gpuModel), "All GPUs");
+  fillSelect(regionFilter, state.items.map((item) => item.region), "All regions");
+  fillSelect(providerFilter, state.items.map((item) => item.provider), "All providers");
+  render();
 }
 
 function fillSelect(select, values, allLabel) {
